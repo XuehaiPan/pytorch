@@ -34,9 +34,7 @@ ISORT_WHITELIST = re.compile(
                     # benchmarks/**
                     # functorch/**
                     # tools/**
-                    "tools/**",
                     # torchgen/**
-                    "torchgen/**",
                     # test/**
                     "test/**",
                     # test/[a-c]*/**
