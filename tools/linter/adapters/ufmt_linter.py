@@ -33,7 +33,6 @@ ISORT_WHITELIST = re.compile(
                     # .github/**
                     # benchmarks/**
                     # functorch/**
-                    "functorch/**",
                     # tools/**
                     "tools/**",
                     # torchgen/**
