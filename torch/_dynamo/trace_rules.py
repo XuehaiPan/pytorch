@@ -44,6 +44,7 @@ from .resume_execution import TORCH_DYNAMO_RESUME_IN_PREFIX
 from .utils import getfile, hashable, NP_SUPPORTED_MODULES, unwrap_if_wrapper
 from .variables import (
     BuiltinVariable,
+    CxxPyTreeFunctionVariable,
     FunctionalCallVariable,
     FunctorchHigherOrderVariable,
     NestedUserFunctionVariable,
@@ -314,6 +315,8 @@ manual_torch_name_rule_map = {
     f"torch/testing/_internal/distributed/_tensor/common_dtensor.py#{TORCH_DYNAMO_RESUME_IN_PREFIX}": UserFunctionVariable,
     "torch/testing/_internal/common_distributed.py#forward": UserFunctionVariable,
     f"torch/testing/_internal/common_distributed.py#{TORCH_DYNAMO_RESUME_IN_PREFIX}": UserFunctionVariable,
+    # CXX pytree
+    "torch.utils._cxx_pytree.tree_leaves": CxxPyTreeFunctionVariable,
 }
 
 
@@ -3232,6 +3235,7 @@ MOD_INLINELIST = {
     "torch.utils._content_store",
     "torch.utils._contextlib",
     "torch.utils._foreach_utils",
+    "torch.utils._cxx_pytree",
     "torch.utils._pytree",
     "torch.utils.hooks",
     "torch._tensor",

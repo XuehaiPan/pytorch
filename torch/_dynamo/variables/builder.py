@@ -920,9 +920,8 @@ class VariableBuilder:
             # so source needs to be updated as well.
             if attr_name is not None:
                 self.source = AttrSource(self.source, attr_name)
-            return trace_rules.lookup(value).create_with_source(
-                value, source=self.source
-            )
+            function_variable_class = trace_rules.lookup(value)
+            return function_variable_class.create_with_source(value, source=self.source)
         # Don't use istype, since some python modules are not subclasses of types.ModuleType directly.
         # E.g, type(torch.ops) -> <class 'torch._ops._Ops'>,
         # type(torch.backends.cudnn) -> <class 'torch.backends.cudnn.CudnnModule'>

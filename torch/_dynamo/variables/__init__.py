@@ -27,6 +27,7 @@ from .dicts import (
 )
 from .distributed import BackwardHookVariable, DistributedVariable, PlacementVariable
 from .functions import (
+    CxxPyTreeFunctionVariable,
     FunctoolsPartialVariable,
     NestedUserFunctionVariable,
     SkipFunctionVariable,

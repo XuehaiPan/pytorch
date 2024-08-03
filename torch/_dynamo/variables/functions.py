@@ -927,6 +927,45 @@ class FunctoolsPartialVariable(VariableTracker):
         )
 
 
+class CxxPyTreeFunctionVariable(VariableTracker):
+    _nonvar_fields = {
+        "fn",
+        *BaseUserFunctionVariable._nonvar_fields,
+    }
+
+    @classmethod
+    def create_with_source(cls, value, source):
+        return cls(
+            value,
+            source=source,
+        )
+
+    def __init__(self, fn: VariableTracker, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.fn = fn
+
+    def get_function(self):
+        return self.as_python_constant()
+
+    def call_function(
+        self,
+        tx: "InstructionTranslator",
+        args: "List[VariableTracker]",
+        kwargs: "Dict[str, VariableTracker]",
+    ) -> "VariableTracker":
+        source = AttrSource(self.source, '__torch_dynamo_polyfill__')
+        return UserFunctionVariable(
+            self.fn.__torch_dynamo_polyfill__, source=source
+        ).call_function(tx, args, kwargs)
+
+    def as_python_constant(self):
+        return self.fn.as_python_constant()
+
+    def guard_as_python_constant(self):
+        """Similar to as_python_constant(), but add ID_MATCH guards to try to force things to become constants"""
+        return self.fn.guard_as_python_constant()
+
+
 from torch._higher_order_ops.triton_kernel_wrap import TritonHOPifier
 
 

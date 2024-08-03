@@ -1005,3 +1005,39 @@ def key_get(obj: Any, kp: KeyPath) -> Any:
 _pytree._cxx_pytree_imported = True
 for args, kwargs in _pytree._cxx_pytree_pending_imports:
     _private_register_pytree_node(*args, **kwargs)
+
+
+# Pure Python implementation for Dynamo support ################################
+
+
+def _tree_iter_polyfill(
+    tree: PyTree,
+    is_leaf: Optional[Callable[[PyTree], bool]] = None,
+) -> Iterable[Any]:
+    stack = [tree]
+    while stack:
+        curr = stack.pop()
+        try:
+            children, metadata, entries, unflatten_func = optree.tree_flatten_one_level(
+                curr,
+                is_leaf=is_leaf,
+                none_is_leaf=True,
+                namespace="torch",
+            )
+        except ValueError:
+            yield curr
+        else:
+            stack.extend(reversed(children))
+
+
+tree_iter.__torch_dynamo_polyfill__ = _tree_iter_polyfill
+
+
+def _tree_leaves_polyfill(
+    tree: PyTree,
+    is_leaf: Optional[Callable[[PyTree], bool]] = None,
+) -> List[Any]:
+    return list(_tree_iter_polyfill(tree, is_leaf=is_leaf))
+
+
+tree_leaves.__torch_dynamo_polyfill__ = _tree_leaves_polyfill
