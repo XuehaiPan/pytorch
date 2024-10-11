@@ -24,6 +24,7 @@ from typing import (
     overload,
     Tuple,
     Type,
+    TYPE_CHECKING,
     TypeVar,
     Union,
 )
@@ -33,7 +34,18 @@ import optree
 from optree import PyTreeSpec  # direct import for type annotations
 
 import torch.utils._pytree as _pytree
-from torch.utils._pytree import KeyEntry
+from torch.utils._pytree import (
+    GetAttrKey,
+    key_get,
+    KeyEntry,
+    keystr,
+    MappingKey,
+    SequenceKey,
+)
+
+
+if TYPE_CHECKING:
+    from optree import PyTreeAccessor
 
 
 __all__ = [
@@ -82,20 +94,45 @@ PyTree = Any
 TreeSpec = PyTreeSpec
 FlattenFunc = Callable[[PyTree], Tuple[List[Any], Context]]
 UnflattenFunc = Callable[[Iterable[Any], Context], PyTree]
-OpTreeUnflattenFunc = Callable[[Context, Iterable[Any]], PyTree]
 DumpableContext = Any  # Any json dumpable text
 ToDumpableContextFn = Callable[[Context], DumpableContext]
 FromDumpableContextFn = Callable[[DumpableContext], Context]
 KeyPath = Tuple[KeyEntry, ...]
-FlattenWithKeysFunc = Callable[[PyTree], Tuple[List[Tuple[KeyEntry, Any]], Any]]
+FlattenWithKeysFunc = Callable[[PyTree], Tuple[List[Tuple[KeyEntry, Any]], Context]]
 
 
-def _reverse_args(func: UnflattenFunc) -> OpTreeUnflattenFunc:
-    @functools.wraps(func)
-    def wrapped(*args: Any, **kwargs: Any) -> Any:
-        return func(*reversed(args), **kwargs)
+OpTreeFlattenFunc = Callable[
+    [PyTree],
+    Tuple[Iterable[Any], Context, Optional[Iterable[Any]]],
+]
+OpTreeUnflattenFunc = Callable[[Context, Iterable[Any]], PyTree]
 
-    return wrapped
+
+def _to_optree_func(
+    *,
+    flatten_func: FlattenFunc,
+    unflatten_func: UnflattenFunc,
+    flatten_with_keys_func: Optional[FlattenWithKeysFunc] = None,
+) -> Tuple[OpTreeFlattenFunc, OpTreeUnflattenFunc]:
+    if flatten_with_keys_func is not None:
+        # OpTree flattens the PyTree with extra entries. Use the flatten_with_keys_func to
+        # have these extra custom information.
+        def optree_flatten_func(tree: PyTree) -> Tuple[Tuple[Any], Context, List[Any]]:
+            key_entries_with_children, context = flatten_with_keys_func(tree)
+            key_entries, children = tuple(zip(*key_entries_with_children))
+            entries = [key_entry.entry for key_entry in key_entries]
+            return children, context, entries
+
+    else:
+        # Flatten the PyTree without extra custom entry information.
+        def optree_flatten_func(tree: PyTree) -> Tuple[List[Any], Context, None]:  # type: ignore[misc]
+            children, context = flatten_func(tree)
+            return children, context, None
+
+    def optree_unflatten_func(metadata: Context, children: Iterable[Any]) -> PyTree:
+        return unflatten_func(children, metadata)
+
+    return optree_flatten_func, optree_unflatten_func
 
 
 def register_pytree_node(
@@ -139,9 +176,6 @@ def register_pytree_node(
         ...     lambda children, _: set(children),
         ... )
     """
-    if flatten_with_keys_fn is not None:
-        raise NotImplementedError("KeyPaths are not yet supported in cxx_pytree.")
-
     _private_register_pytree_node(
         cls,
         flatten_fn,
@@ -149,6 +183,7 @@ def register_pytree_node(
         serialized_type_name=serialized_type_name,
         to_dumpable_context=to_dumpable_context,
         from_dumpable_context=from_dumpable_context,
+        flatten_with_keys_fn=flatten_with_keys_fn,
     )
 
     from . import _pytree as python
@@ -160,6 +195,7 @@ def register_pytree_node(
         serialized_type_name=serialized_type_name,
         to_dumpable_context=to_dumpable_context,
         from_dumpable_context=from_dumpable_context,
+        flatten_with_keys_fn=flatten_with_keys_fn,
     )
 
 
@@ -227,6 +263,7 @@ def _private_register_pytree_node(
     serialized_type_name: Optional[str] = None,
     to_dumpable_context: Optional[ToDumpableContextFn] = None,
     from_dumpable_context: Optional[FromDumpableContextFn] = None,
+    flatten_with_keys_fn: Optional[FlattenWithKeysFunc] = None,
 ) -> None:
     """This is an internal function that is used to register a pytree node type
     for the C++ pytree only. End-users should use :func:`register_pytree_node`
@@ -235,10 +272,15 @@ def _private_register_pytree_node(
     # TODO(XuehaiPan): remove this condition when we make Python pytree out-of-box support
     # PyStructSequence types
     if not optree.is_structseq_class(cls):
+        optree_flatten_func, optree_unflatten_func = _to_optree_func(
+            flatten_func=flatten_fn,
+            unflatten_func=unflatten_fn,
+            flatten_with_keys_func=flatten_with_keys_fn,
+        )
         optree.register_pytree_node(
             cls,
-            flatten_fn,
-            _reverse_args(unflatten_fn),
+            optree_flatten_func,  # type: ignore[arg-type]
+            optree_unflatten_func,  # type: ignore[arg-type]
             namespace="torch",
         )
 
@@ -254,7 +296,7 @@ def tree_flatten(
     The flattening order (i.e., the order of elements in the output list) is deterministic,
     corresponding to a left-to-right depth-first tree traversal.
 
-    >>> tree = {'b': (2, [3, 4]), 'a': 1, 'c': None, 'd': 5}
+    >>> tree = {"b": (2, [3, 4]), "a": 1, "c": None, "d": 5}
     >>> tree_flatten(tree)
     ([1, 2, 3, 4, None, 5], PyTreeSpec({'a': *, 'b': (*, [*, *]), 'c': *, 'd': *}, NoneIsLeaf))
     >>> tree_flatten(1)
@@ -267,7 +309,7 @@ def tree_flatten(
     if you want to keep the keys in the insertion order.
 
     >>> from collections import OrderedDict
-    >>> tree = OrderedDict([('b', (2, [3, 4])), ('a', 1), ('c', None), ('d', 5)])
+    >>> tree = OrderedDict([("b", (2, [3, 4])), ("a", 1), ("c", None), ("d", 5)])
     >>> tree_flatten(tree)
     ([2, 3, 4, 1, None, 5], PyTreeSpec(OrderedDict({'b': (*, [*, *]), 'a': *, 'c': *, 'd': *}), NoneIsLeaf))
 
@@ -296,7 +338,7 @@ def tree_unflatten(leaves: Iterable[Any], treespec: TreeSpec) -> PyTree:
 
     The inverse of :func:`tree_flatten`.
 
-    >>> tree = {'b': (2, [3, 4]), 'a': 1, 'c': None, 'd': 5}
+    >>> tree = {"b": (2, [3, 4]), "a": 1, "c": None, "d": 5}
     >>> leaves, treespec = tree_flatten(tree)
     >>> tree == tree_unflatten(leaves, treespec)
     True
@@ -326,7 +368,7 @@ def tree_iter(
 
     See also :func:`tree_flatten`.
 
-    >>> tree = {'b': (2, [3, 4]), 'a': 1, 'c': None, 'd': 5}
+    >>> tree = {"b": (2, [3, 4]), "a": 1, "c": None, "d": 5}
     >>> list(tree_iter(tree))
     [1, 2, 3, 4, None, 5]
     >>> list(tree_iter(1))
@@ -361,7 +403,7 @@ def tree_leaves(
 
     See also :func:`tree_flatten`.
 
-    >>> tree = {'b': (2, [3, 4]), 'a': 1, 'c': None, 'd': 5}
+    >>> tree = {"b": (2, [3, 4]), "a": 1, "c": None, "d": 5}
     >>> tree_leaves(tree)
     [1, 2, 3, 4, None, 5]
     >>> tree_leaves(1)
@@ -396,7 +438,7 @@ def tree_structure(
 
     See also :func:`tree_flatten`.
 
-    >>> tree = {'b': (2, [3, 4]), 'a': 1, 'c': None, 'd': 5}
+    >>> tree = {"b": (2, [3, 4]), "a": 1, "c": None, "d": 5}
     >>> tree_structure(tree)
     PyTreeSpec({'a': *, 'b': (*, [*, *]), 'c': *, 'd': *}, NoneIsLeaf)
     >>> tree_structure(1)
@@ -433,9 +475,9 @@ def tree_map(
 
     See also :func:`tree_map_`.
 
-    >>> tree_map(lambda x: x + 1, {'x': 7, 'y': (42, 64)})
+    >>> tree_map(lambda x: x + 1, {"x": 7, "y": (42, 64)})
     {'x': 8, 'y': (43, 65)}
-    >>> tree_map(lambda x: x is None, {'x': 7, 'y': (42, 64), 'z': None})
+    >>> tree_map(lambda x: x is None, {"x": 7, "y": (42, 64), "z": None})
     {'x': False, 'y': (False, False), 'z': True}
 
     If multiple inputs are given, the structure of the tree is taken from the first input;
@@ -533,7 +575,9 @@ def map_only(__type_or_types_or_pred: Type2[T, S]) -> MapOnlyFn[Fn2[T, S, Any]]:
 
 
 @overload
-def map_only(__type_or_types_or_pred: Type3[T, S, U]) -> MapOnlyFn[Fn3[T, S, U, Any]]:
+def map_only(
+    __type_or_types_or_pred: Type3[T, S, U],
+) -> MapOnlyFn[Fn3[T, S, U, Any]]:
     ...
 
 
@@ -549,12 +593,14 @@ def map_only(__type_or_types_or_pred: TypeAny) -> MapOnlyFn[FnAny[Any]]:
 
 
 @overload
-def map_only(__type_or_types_or_pred: Callable[[Any], bool]) -> MapOnlyFn[FnAny[Any]]:
+def map_only(
+    __type_or_types_or_pred: Callable[[Any], bool],
+) -> MapOnlyFn[FnAny[Any]]:
     ...
 
 
 def map_only(
-    __type_or_types_or_pred: Union[TypeAny, Callable[[Any], bool]]
+    __type_or_types_or_pred: Union[TypeAny, Callable[[Any], bool]],
 ) -> MapOnlyFn[FnAny[Any]]:
     """
     Suppose you are writing a tree_map over tensors, leaving everything
@@ -819,7 +865,7 @@ def broadcast_prefix(
     ValueError: list arity mismatch; expected: 3, got: 4; list: [1, 2, 3, 4].
     >>> broadcast_prefix([1, 2, 3], [1, 2, (3, 4)])
     [1, 2, 3, 3]
-    >>> broadcast_prefix([1, 2, 3], [1, 2, {'a': 3, 'b': 4, 'c': (None, 5)}])
+    >>> broadcast_prefix([1, 2, 3], [1, 2, {"a": 3, "b": 4, "c": (None, 5)}])
     [1, 2, 3, 3, 3, 3]
 
     Args:
@@ -916,6 +962,24 @@ class LeafSpec(TreeSpec, metaclass=LeafSpecMeta):
         return optree.treespec_leaf(none_is_leaf=True)  # type: ignore[return-value]
 
 
+def _accessor_to_key_path(accessor: "PyTreeAccessor") -> KeyPath:
+    key_path: List[KeyEntry] = []
+    for entry in accessor:
+        if isinstance(entry, optree.GetAttrEntry):
+            key_path.append(GetAttrKey(entry.name))
+        elif isinstance(entry, optree.StructSequenceEntry):
+            key_path.append(SequenceKey(entry.index))
+        elif isinstance(entry, optree.NamedTupleEntry):
+            key_path.append(GetAttrKey(entry.field))
+        elif isinstance(entry, optree.SequenceEntry):
+            key_path.append(SequenceKey(entry.index))
+        elif isinstance(entry, optree.MappingEntry):
+            key_path.append(MappingKey(entry.key))
+        else:
+            raise ValueError(f"Unsupported accessor entry: {entry}")
+    return tuple(key_path)
+
+
 def tree_flatten_with_path(
     tree: PyTree,
     is_leaf: Optional[Callable[[PyTree], bool]] = None,
@@ -936,7 +1000,13 @@ def tree_flatten_with_path(
         second element is a :class:`TreeSpec` representing the structure of the flattened
         tree.
     """
-    raise NotImplementedError("KeyPaths are not yet supported in cxx_pytree.")
+    accessors, leaves, treespec = optree.tree_flatten_with_accessor(
+        tree,
+        is_leaf=is_leaf,
+        none_is_leaf=True,
+        namespace="torch",
+    )
+    return list(zip(map(_accessor_to_key_path, accessors), leaves)), treespec
 
 
 def tree_leaves_with_path(
@@ -957,7 +1027,7 @@ def tree_leaves_with_path(
     Returns:
         A list of (key path, leaf) pairs.
     """
-    raise NotImplementedError("KeyPaths are not yet supported in cxx_pytree.")
+    return tree_flatten_with_path(tree, is_leaf=is_leaf)[0]
 
 
 def tree_map_with_path(
@@ -989,19 +1059,18 @@ def tree_map_with_path(
         corresponding leaf in ``tree``, ``x`` is the value at that leaf, and
         ``xs`` is the tuple of values at corresponding nodes in ``rests``.
     """
-    raise NotImplementedError("KeyPaths are not yet supported in cxx_pytree.")
+    return optree.tree_map_with_accessor(
+        lambda accessor, *xs: func(_accessor_to_key_path(accessor), *xs),
+        tree,
+        *rests,
+        is_leaf=is_leaf,
+        none_is_leaf=True,
+        namespace="torch",
+    )
 
 
-def keystr(kp: KeyPath) -> str:
-    """Given a key path, return a pretty-printed representation."""
-    raise NotImplementedError("KeyPaths are not yet supported in cxx_pytree.")
-
-
-def key_get(obj: Any, kp: KeyPath) -> Any:
-    """Given an object and a key path, return the value at the key path."""
-    raise NotImplementedError("KeyPaths are not yet supported in cxx_pytree.")
-
-
-_pytree._cxx_pytree_imported = True
-for args, kwargs in _pytree._cxx_pytree_pending_imports:
-    _private_register_pytree_node(*args, **kwargs)
+with _pytree._NODE_REGISTRY_LOCK:
+    _pytree._cxx_pytree_imported = True
+    for args, kwargs in _pytree._cxx_pytree_pending_imports:
+        _private_register_pytree_node(*args, **kwargs)
+    _pytree._cxx_pytree_pending_imports.clear()
