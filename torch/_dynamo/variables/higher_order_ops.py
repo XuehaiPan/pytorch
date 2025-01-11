@@ -2594,9 +2594,9 @@ class AutogradFunctionApplyVariable(VariableTracker):
             if isinstance(x, torch.fx.Proxy):
                 return x.node
             else:
-                assert variables.ConstantVariable.is_literal(
-                    x
-                ), f"Only constant is allowed. Got {x}"
+                assert variables.ConstantVariable.is_literal(x), (
+                    f"Only constant is allowed. Got {x}"
+                )
                 return x
 
         new_fwd_graph_outputs = (fwd_out.as_proxy(), fwd_proxy_of_bwd_freevars)

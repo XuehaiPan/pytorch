@@ -242,9 +242,9 @@ def _unlift_graph(
         elif node_name in graph_signature.inputs_to_buffers:
             buffer_name = graph_signature.inputs_to_buffers[node_name]
             lifted_inputs.append(buffer_name)
-            gm.meta[
-                get_cloned_parameter_buffer_name(buffer_name)
-            ] = clone_preserve_strides(state_dict[buffer_name])
+            gm.meta[get_cloned_parameter_buffer_name(buffer_name)] = (
+                clone_preserve_strides(state_dict[buffer_name])
+            )
         else:
             assert node_name in graph_signature.user_inputs
             lifted_inputs.append(None)
@@ -488,7 +488,7 @@ def fake_tensor_prop(
 
 # pass config dict back to user
 def get_patched_config_dict(
-    config_patches: Optional[Union[str, Dict[str, Any]]] = None
+    config_patches: Optional[Union[str, Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     with config.patch(config_patches):
         return config.get_config_copy()
@@ -525,8 +525,7 @@ class _CompileFxCallable(Protocol):
         gm: GraphModule,
         example_inputs: Sequence[InputType],
         **kwargs: Unpack[_CompileFxKwargs],
-    ) -> OutputCode:
-        ...
+    ) -> OutputCode: ...
 
 
 def compile_fx_inner(
@@ -605,9 +604,9 @@ def _compile_fx_inner(
     static_inputs_log.debug("static input idxs compile_fx_inner: %s", static_input_idxs)
     inputs_to_check = get_input_idxs_to_check(example_inputs, static_input_idxs)
 
-    assert isinstance(
-        next(iter(reversed(gm.graph.nodes))).args[0], (tuple, list)
-    ), f"inductor can only compile FX graphs which return a tuple/list, but got {gm.graph}"
+    assert isinstance(next(iter(reversed(gm.graph.nodes))).args[0], (tuple, list)), (
+        f"inductor can only compile FX graphs which return a tuple/list, but got {gm.graph}"
+    )
 
     if (cudagraphs := graph_kwargs.get("cudagraphs")) is None:
         graph_kwargs["cudagraphs"] = cudagraphs = BoxedBool(config.triton.cudagraphs)
@@ -796,8 +795,7 @@ class FxCompile(ABC):
         example_inputs: Sequence[InputType],
         inputs_to_check: Sequence[int],
         graph_kwargs: _CompileFxKwargs,
-    ) -> OutputCode:
-        ...
+    ) -> OutputCode: ...
 
 
 class _InProcessFxCompile(FxCompile):
@@ -821,16 +819,17 @@ class _InProcessFxCompile(FxCompile):
         cpp_wrapper: bool = graph_kwargs.get("cpp_wrapper", False)
         aot_mode: bool = V.aot_compilation
         is_inference: bool = graph_kwargs.get("is_inference", False)
-        extern_node_serializer: Optional[
-            Callable[[List[ExternKernelNode]], Any]
-        ] = graph_kwargs.get("extern_node_serializer", None)
+        extern_node_serializer: Optional[Callable[[List[ExternKernelNode]], Any]] = (
+            graph_kwargs.get("extern_node_serializer", None)
+        )
         boxed_forward_device_index: Optional[BoxedDeviceIndex] = graph_kwargs.get(
             "boxed_forward_device_index", None
         )
 
-        with _WaitCounter(
-            "pytorch.wait_counter.actual_codegen_and_compile"
-        ).guard(), dynamo_utils.preserve_rng_state():
+        with (
+            _WaitCounter("pytorch.wait_counter.actual_codegen_and_compile").guard(),
+            dynamo_utils.preserve_rng_state(),
+        ):
             if (sleep_sec := config.sleep_sec_TESTING_ONLY) is not None:
                 import time
 
@@ -948,8 +947,9 @@ class _InProcessFxCompile(FxCompile):
                         extra_logging={"pt2_configs": str(get_patched_config_dict())}
                     )
 
-            with V.set_fake_mode(fake_mode), maybe_disable_comprehensive_padding(
-                example_inputs
+            with (
+                V.set_fake_mode(fake_mode),
+                maybe_disable_comprehensive_padding(example_inputs),
             ):
                 const_output_index = None
                 const_graph = None
@@ -1029,9 +1029,9 @@ class _InProcessFxCompile(FxCompile):
                         if graph.aot_mode:
                             from .codecache import AotCodeCompiler
 
-                            assert (
-                                graph.cpp_wrapper
-                            ), "AOT mode only supports C++ wrapper"
+                            assert graph.cpp_wrapper, (
+                                "AOT mode only supports C++ wrapper"
+                            )
                             code, linemap = graph.codegen_with_cpp_wrapper()
                             output_code_log.debug("Output code: \n%s", code)
 
@@ -1220,10 +1220,13 @@ def cudagraphify(
     def run(new_inputs: Sequence[InputType]) -> Any:
         nonlocal compiled_fn
         if compiled_fn is None:
-            with dynamo_utils.dynamo_timed(
-                "cudagraphify",
-                log_pt2_compile_event=True,
-            ), dynamo_utils.preserve_rng_state():
+            with (
+                dynamo_utils.dynamo_timed(
+                    "cudagraphify",
+                    log_pt2_compile_event=True,
+                ),
+                dynamo_utils.preserve_rng_state(),
+            ):
                 compiled_fn = cudagraphify_fn(model, new_inputs, static_input_idxs)
         return compiled_fn(new_inputs)
 
@@ -1378,8 +1381,9 @@ def compile_fx_aot(
     extern_node_serializer = config_patches.pop("extern_node_serializer", None)
     saved_compile_id = model_.meta.get("dynamo_compile_id", None)
     saved_compile_context = torch._guards.CompileContext(saved_compile_id)
-    with V.set_aot_compilation(True), torch._guards.compile_context(
-        saved_compile_context
+    with (
+        V.set_aot_compilation(True),
+        torch._guards.compile_context(saved_compile_context),
     ):
         compiled_artifacts = compile_fx(
             model_,
@@ -1581,12 +1585,15 @@ def compile_fx(
 
     # TODO: This probably shouldn't be a recursive call
     if config.cpp_wrapper:
-        with config.patch(
-            {
-                "cpp_wrapper": False,  # reset to break recursive call to compile_fx
-                **get_cpp_wrapper_config(),
-            }
-        ), V.set_real_inputs(example_inputs_):
+        with (
+            config.patch(
+                {
+                    "cpp_wrapper": False,  # reset to break recursive call to compile_fx
+                    **get_cpp_wrapper_config(),
+                }
+            ),
+            V.set_real_inputs(example_inputs_),
+        ):
             inputs_: Sequence[InputType] = example_inputs_
 
             if isinstance(model_, GraphModule):
@@ -1646,10 +1653,10 @@ def compile_fx(
 
     # Do the actual work
 
-    with _use_lazy_graph_module(
-        dynamo_config.use_lazy_graph_module
-    ), enable_python_dispatcher(), torch.fx.traceback.preserve_node_meta(
-        config.trace.enabled
+    with (
+        _use_lazy_graph_module(dynamo_config.use_lazy_graph_module),
+        enable_python_dispatcher(),
+        torch.fx.traceback.preserve_node_meta(config.trace.enabled),
     ):
         # Pre-grad passes cannot be run if we weren't given a GraphModule.
         # Dynamo will always produce a GraphModule, but this handles cases
@@ -1790,9 +1797,9 @@ def compile_fx(
                     boxed_forward_device_index=forward_device,
                 )
 
-        fw_compiler: Callable[
-            [GraphModule, Sequence[InputType]], OutputCode
-        ] = functools.partial(fw_compiler_base, is_inference=False)
+        fw_compiler: Callable[[GraphModule, Sequence[InputType]], OutputCode] = (
+            functools.partial(fw_compiler_base, is_inference=False)
+        )
         fw_compiler = SerializableAOTDispatchCompiler(OutputCode, fw_compiler)
 
         if config.freezing and not torch.is_grad_enabled():
@@ -1829,9 +1836,10 @@ def compile_fx(
         ) -> OutputCode:
             from torch._dynamo.convert_frame import compile_lock
 
-            with dynamo_utils.dynamo_timed(
-                "compile_fx.<locals>.bw_compiler"
-            ), compile_lock:
+            with (
+                dynamo_utils.dynamo_timed("compile_fx.<locals>.bw_compiler"),
+                compile_lock,
+            ):
                 model_outputs_node = output_node(gm)
                 if config.bw_outputs_user_visible:
                     model_outputs = pytree.arg_tree_leaves(*model_outputs_node.args)
@@ -1844,9 +1852,11 @@ def compile_fx(
                     model_outputs_node.meta["user_visible_output_idxs"] = []
 
                 fixed = count_tangents(gm)
-                with config.patch(
-                    get_cpp_wrapper_config()
-                ) if config.cpp_wrapper else contextlib.nullcontext():
+                with (
+                    config.patch(get_cpp_wrapper_config())
+                    if config.cpp_wrapper
+                    else contextlib.nullcontext()
+                ):
                     return inner_compile(
                         gm,
                         example_inputs,
@@ -1897,10 +1907,11 @@ def compile_fx(
             with V.set_fake_mode(fake_mode), compiled_autograd._disable(), context():
                 return inference_compiler(unlifted_gm, example_inputs_)
 
-        with V.set_fake_mode(fake_mode), torch._guards.tracing(
-            tracing_context
-        ), compiled_autograd._disable(), functorch_config.patch(
-            unlift_effect_tokens=True
+        with (
+            V.set_fake_mode(fake_mode),
+            torch._guards.tracing(tracing_context),
+            compiled_autograd._disable(),
+            functorch_config.patch(unlift_effect_tokens=True),
         ):
             try:
                 return aot_autograd(
