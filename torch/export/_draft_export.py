@@ -33,7 +33,7 @@ def prettify_stack(stack: List[Dict[str, str]], str_to_filename: Dict[str, str])
             continue
 
         res += f"""
-        File {str_to_filename[frame['filename']]}, lineno {frame['line']}, in {frame['name']}"""
+        File {str_to_filename[frame["filename"]]}, lineno {frame["line"]}, in {frame["name"]}"""
     return res
 
 
@@ -51,7 +51,7 @@ def filter_stack(
 
 
 def hash_stack(stack: List[Dict[str, str]]) -> str:
-    return ";".join(f'line: {s["line"]} filename: {s["filename"]}' for s in stack)
+    return ";".join(f"line: {s['line']} filename: {s['filename']}" for s in stack)
 
 
 class FailureReport:
@@ -205,10 +205,13 @@ def draft_export(
         ]
     )
 
-    with torch._functorch.config.patch(
-        fake_tensor_propagate_real_tensors=True,
-        generate_fake_kernels_from_real_mismatches=True,
-    ), capture_structured_log:
+    with (
+        torch._functorch.config.patch(
+            fake_tensor_propagate_real_tensors=True,
+            generate_fake_kernels_from_real_mismatches=True,
+        ),
+        capture_structured_log,
+    ):
         try:
             new_shapes = None
             ep = _export(
