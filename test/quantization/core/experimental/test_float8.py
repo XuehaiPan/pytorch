@@ -396,7 +396,6 @@ instantiate_device_type_tests(TestFloat8Dtype, globals())
 
 
 class TestFloat8DtypeCPUOnly(TestCase):
-
     """
     Test of mul implementation
 
