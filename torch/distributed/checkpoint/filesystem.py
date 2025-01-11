@@ -503,7 +503,6 @@ class FileSystem(FileSystemBase):
 
 
 class _FileSystemWriter(StorageWriter):
-
     """
     Basic implementation of StorageWriter using file IO.
 
