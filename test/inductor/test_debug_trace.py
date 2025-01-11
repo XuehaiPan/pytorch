@@ -241,9 +241,12 @@ op2.node.kernel = extern_kernels.mm""",
                 return self.relu(self.l(x))
 
         # no failure
-        with self.assertLogs(
-            logging.getLogger("torch._inductor.debug"), level=logging.WARNING
-        ), fresh_inductor_cache():
+        with (
+            self.assertLogs(
+                logging.getLogger("torch._inductor.debug"), level=logging.WARNING
+            ),
+            fresh_inductor_cache(),
+        ):
             m = ToyModel().to(device=GPU_TYPE)
             m = torch.compile(m, mode="max-autotune")
             input_tensor = torch.randn(100).to(device=GPU_TYPE)

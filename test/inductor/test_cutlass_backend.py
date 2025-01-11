@@ -72,9 +72,9 @@ class TestCutlassBackend(TestCase):
             os.environ["INDUCTOR_TEST_DISABLE_FRESH_CACHE"] = "1"
             super().setUp()
         finally:
-            os.environ[
-                "INDUCTOR_TEST_DISABLE_FRESH_CACHE"
-            ] = old_disable_fresh_cache_envvar
+            os.environ["INDUCTOR_TEST_DISABLE_FRESH_CACHE"] = (
+                old_disable_fresh_cache_envvar
+            )
         torch.random.manual_seed(1234)
 
     @unittest.skipIf(not SM75OrLater, "need sm_75")
@@ -119,7 +119,9 @@ class TestCutlassBackend(TestCase):
                 ]
                 assert all(
                     isinstance(cc, ChoiceCaller) for cc in passed_choice_callers
-                ), "Argument 1 to autotune_select_algorithm should be a list of ChoiceCaller instances"
+                ), (
+                    "Argument 1 to autotune_select_algorithm should be a list of ChoiceCaller instances"
+                )
                 # We expect that no Cutlass Kernels are considered, due to the threshold
                 assert all(
                     not isinstance(cc, CUDATemplateCaller)
@@ -394,9 +396,9 @@ class TestCutlassBackend(TestCase):
             Y_compiled = torch.compile(mm, dynamic=dynamic)(a, b)
             Y = mm(a, b)
             actual_count = counters["inductor"]["cuda_epilogue_fusion_counter"]
-            assert (
-                actual_count == expected_fuse_count
-            ), f"Expected fuse count of {expected_fuse_count} but got {actual_count}"
+            assert actual_count == expected_fuse_count, (
+                f"Expected fuse count of {expected_fuse_count} but got {actual_count}"
+            )
             torch.testing.assert_close(Y_compiled, Y, atol=1e-2, rtol=1e-2)
 
     @unittest.skipIf(not SM90OrLater, "need sm_90")
@@ -943,9 +945,9 @@ class TestCutlassBackend(TestCase):
                     for choice in choices:
                         if isinstance(choice, CUDATemplateCaller):
                             choice_info = choice.info_dict()
-                            assert (
-                                "pingpong" not in choice_info["op_conf_name"]
-                            ), "All pingpong Kernels should have been filtered"
+                            assert "pingpong" not in choice_info["op_conf_name"], (
+                                "All pingpong Kernels should have been filtered"
+                            )
                             cuda_template_count += 1
                     assert cuda_template_count > 0, "No CUDATemplateCaller choices"
 
@@ -991,9 +993,9 @@ class TestCutlassBackend(TestCase):
                     for choice in choices:
                         if isinstance(choice, CUDATemplateCaller):
                             choice_info = choice.info_dict()
-                            assert (
-                                "pingpong" in choice_info["op_conf_name"]
-                            ), "Only pingpong Kernels should have been allowed"
+                            assert "pingpong" in choice_info["op_conf_name"], (
+                                "Only pingpong Kernels should have been allowed"
+                            )
                             cuda_template_count += 1
                     assert cuda_template_count > 0, "No CUDATemplateCaller choices"
 
