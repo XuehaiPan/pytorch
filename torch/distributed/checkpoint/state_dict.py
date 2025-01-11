@@ -1140,7 +1140,9 @@ def get_state_dict(
 
 
         >>> ddp_state_dict, ddp_optim_state_dict = get_state_dict(ddp_model, ddp_optim)
-        >>> fsdp_state_dict, fsdp_optim_state_dict = get_state_dict(fsdp_model, fsdp_optim)
+        >>> fsdp_state_dict, fsdp_optim_state_dict = get_state_dict(
+        ...     fsdp_model, fsdp_optim
+        ... )
 
         >>> # if we simply call ddp_model.state_dict() and fsdp_model.state_dict(),
         >>> # the asserts will fail.

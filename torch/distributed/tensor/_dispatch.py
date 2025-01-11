@@ -200,8 +200,9 @@ class OpDispatcher:
                     # did not already construct one
                     random._rng_tracker = random.OffsetBasedRNGTracker(mesh)
 
-                first_arg, first_local_arg = cast(dtensor.DTensor, args[0]), cast(
-                    torch.Tensor, local_tensor_args[0]
+                first_arg, first_local_arg = (
+                    cast(dtensor.DTensor, args[0]),
+                    cast(torch.Tensor, local_tensor_args[0]),
                 )
                 rng_context = (
                     random._rng_tracker._distribute_region(first_arg._spec)
@@ -422,18 +423,18 @@ class OpDispatcher:
     def wrap(res: object, spec: OutputSpecType) -> object:
         if isinstance(res, torch.Tensor):
             if spec is not None:
-                assert isinstance(
-                    spec, DTensorSpec
-                ), f"output spec does not match with output! Expected DTensorSpec, got {spec}."
+                assert isinstance(spec, DTensorSpec), (
+                    f"output spec does not match with output! Expected DTensorSpec, got {spec}."
+                )
                 return dtensor.DTensor(res, spec, requires_grad=res.requires_grad)
             else:
                 # if output does not have a DTensorSpec due to specific ops, it must be a scalar tensor
                 assert res.ndim == 0, "output tensor should be scalar!"
                 return res
         elif isinstance(res, (list, tuple)):
-            assert spec is not None and isinstance(
-                spec, (list, tuple)
-            ), f"output spec does not match with output! Expected list/tuple, got {spec}."
+            assert spec is not None and isinstance(spec, (list, tuple)), (
+                f"output spec does not match with output! Expected list/tuple, got {spec}."
+            )
             res_list = []
             for e, s in zip(res, spec):
                 res_list.append(OpDispatcher.wrap(e, s))

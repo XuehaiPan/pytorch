@@ -45,7 +45,7 @@ def register_prop_rule(
     # pyre-fixme[3]: Return type must be annotated.
     # pyre-fixme[2]: Parameter must be annotated.
     def wrapper(
-        impl: Callable[[OpSchema], OutputSharding]
+        impl: Callable[[OpSchema], OutputSharding],
     ) -> Callable[[OpSchema], OutputSharding]:
         overloads = op if isinstance(op, list) else [op]
         for overload in overloads:
