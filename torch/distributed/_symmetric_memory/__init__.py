@@ -1519,8 +1519,7 @@ if TYPE_CHECKING:
 @overload
 def empty(
     *size: _int, dtype: Optional[_dtype] = None, device: Optional[_device] = None
-) -> torch.Tensor:
-    ...
+) -> torch.Tensor: ...
 
 
 @overload
@@ -1529,8 +1528,7 @@ def empty(
     *,
     dtype: Optional[_dtype] = None,
     device: Optional[_device] = None,
-) -> torch.Tensor:
-    ...
+) -> torch.Tensor: ...
 
 
 def empty(  # type: ignore[misc]
