@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Literal, NamedTuple, Optional, TYPE_CHECKING
 
 import torch
-import torch.utils._pytree as pytree
+import torch.utils.pytree.python as pytree
 from torch._C import _fx_map_arg as map_arg, _NodeIter
 
 from . import _pytree as fx_pytree

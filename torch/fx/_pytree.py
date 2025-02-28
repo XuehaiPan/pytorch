@@ -3,7 +3,7 @@ from typing import Any, Callable, Optional, TypeVar
 from typing_extensions import NamedTuple
 
 import torch.return_types
-from torch.utils._pytree import PyTree, tree_flatten, TreeSpec
+from torch.utils.pytree.python import PyTree, tree_flatten, TreeSpec
 
 
 FlattenFuncSpec = Callable[[PyTree, TreeSpec], list]

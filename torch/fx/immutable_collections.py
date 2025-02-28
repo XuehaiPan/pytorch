@@ -2,7 +2,7 @@ from collections.abc import Iterable
 from typing import Any, NoReturn, TypeVar
 from typing_extensions import Self
 
-from torch.utils._pytree import (
+from torch.utils.pytree.python import (  # type: ignore[attr-defined]
     _dict_flatten,
     _dict_flatten_with_keys,
     _dict_unflatten,
