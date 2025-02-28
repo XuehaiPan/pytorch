@@ -983,6 +983,7 @@ def treespec_pprint(treespec: TreeSpec) -> str:
     dummy_tree = tree_unflatten([_asterisk] * treespec.num_leaves, treespec)
     return repr(dummy_tree)
 
+
 def _accessor_to_key_path(accessor: "PyTreeAccessor") -> KeyPath:
     key_path: list[KeyEntry] = []
     for entry in accessor:
@@ -999,6 +1000,8 @@ def _accessor_to_key_path(accessor: "PyTreeAccessor") -> KeyPath:
         else:
             raise ValueError(f"Unsupported accessor entry: {entry}")
     return tuple(key_path)
+
+
 def tree_flatten_with_path(
     tree: PyTree,
     is_leaf: Optional[Callable[[PyTree], bool]] = None,

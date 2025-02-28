@@ -58,7 +58,7 @@ from torch.testing._internal.distributed.common_state_dict import (
     FusionEmbeddingWithModifier,
     VerifyStateDictMixin,
 )
-from torch.utils.pytree.python import tree_all, tree_all_only
+from torch.utils.pytree import tree_all, tree_all_only
 
 
 if not dist.is_available():
