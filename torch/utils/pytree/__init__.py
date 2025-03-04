@@ -19,7 +19,6 @@ import sys as _sys
 from typing import Any as _Any, Optional as _Optional
 
 import torch.utils._pytree as python
-from torch.utils._exposed_in import exposed_in as _exposed_in
 from torch.utils._pytree import (  # these type aliases are identical in both implementations
     FlattenFunc,
     FlattenWithKeysFunc,
@@ -59,7 +58,7 @@ PYTORCH_USE_CXX_PYTREE: bool = _os.getenv("PYTORCH_USE_CXX_PYTREE", "0") not in 
 
 
 if PYTORCH_USE_CXX_PYTREE:
-    import torch.utils._cxx_pytree as cxx  # noqa: F401
+    import torch.utils._cxx_pytree as cxx
 
     if not python._cxx_pytree_dynamo_traceable:
         raise ImportError(
@@ -67,9 +66,15 @@ if PYTORCH_USE_CXX_PYTREE:
             "Please install `optree` via `python -m pip install --upgrade optree`. "
             "Or set the environment variable `PYTORCH_USE_CXX_PYTREE=0`."
         )
+else:
+    cxx = _sys.modules.get("torch.utils._cxx_pytree")  # type: ignore[assignment]
 
 
-_sys.modules[f"{__name__}.cxx"] = _sys.modules.get("torch.utils._cxx_pytree")  # type: ignore[assignment]
+_sys.modules[f"{__name__}.python"] = python
+if cxx is not None:
+    _sys.modules[f"{__name__}.cxx"] = cxx
+else:
+    del cxx
 
 
 if not PYTORCH_USE_CXX_PYTREE:
@@ -91,8 +96,6 @@ if not PYTORCH_USE_CXX_PYTREE:
         tree_unflatten as tree_unflatten,
         treespec_pprint as treespec_pprint,
     )
-
-    PyTreeSpec = _exposed_in(__name__)(PyTreeSpec)  # type: ignore[misc]
 else:
     from torch.utils._cxx_pytree import (  # type: ignore[assignment,no-redef]
         PyTreeSpec as PyTreeSpec,
@@ -112,35 +115,6 @@ else:
         tree_unflatten as tree_unflatten,
         treespec_pprint as treespec_pprint,
     )
-
-
-# Change `__module__` of reexported public APIs to 'torch.utils.pytree'
-__func_names = frozenset(
-    {
-        "tree_all",
-        "tree_all_only",
-        "tree_any",
-        "tree_any_only",
-        "tree_flatten",
-        "tree_iter",
-        "tree_leaves",
-        "tree_map",
-        "tree_map_",
-        "tree_map_only",
-        "tree_map_only_",
-        "tree_structure",
-        "tree_unflatten",
-        "treespec_pprint",
-    }
-)
-globals().update(
-    {
-        name: _exposed_in(__name__)(member)
-        for name, member in globals().items()
-        if name in __func_names
-    }
-)
-del __func_names, _exposed_in
 
 
 def register_pytree_node(  # type: ignore[no-any-unimported]

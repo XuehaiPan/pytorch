@@ -44,19 +44,10 @@ from typing_extensions import deprecated, NamedTuple, Self, TypeAlias
 
 
 __all__ = [
-    "PyTree",
-    "Context",
-    "FlattenFunc",
-    "UnflattenFunc",
-    "DumpableContext",
-    "ToDumpableContextFunc",
-    "FromDumpableContextFunc",
-    "PyTreeSpec",
-    "TreeSpec",
-    "LeafSpec",
     "keystr",
     "key_get",
     "register_pytree_node",
+    "tree_is_leaf",
     "tree_flatten",
     "tree_flatten_with_path",
     "tree_unflatten",
@@ -67,6 +58,7 @@ __all__ = [
     "tree_map",
     "tree_map_with_path",
     "tree_map_",
+    "map_only",
     "tree_map_only",
     "tree_map_only_",
     "tree_all",
@@ -77,6 +69,9 @@ __all__ = [
     "treespec_loads",
     "treespec_pprint",
 ]
+
+
+__name__ = "torch.utils.pytree.python"  # sets the __module__ attribute of all functions in this module
 
 
 T = TypeVar("T")
@@ -805,10 +800,36 @@ def _get_node_type(tree: Any) -> Any:
 
 
 # A leaf is defined as anything that is not a Node.
+def tree_is_leaf(
+    tree: PyTree,
+    is_leaf: Optional[Callable[[PyTree], bool]] = None,
+) -> bool:
+    """Check if a pytree is a leaf.
+    >>> tree_is_leaf(1)
+    True
+    >>> tree_is_leaf(None)
+    True
+    >>> tree_is_leaf([1, 2, 3])
+    False
+    >>> tree_is_leaf((1, 2, 3), is_leaf=lambda x: isinstance(x, tuple))
+    True
+    >>> tree_is_leaf({'a': 1, 'b': 2, 'c': 3})
+    False
+    >>> tree_is_leaf({'a': 1, 'b': 2, 'c': None})
+    False
+    """
+    if is_leaf is not None and is_leaf(tree):
+        return True
+    return _get_node_type(tree) not in SUPPORTED_NODES
+
+
+@deprecated(
+    "torch.utils._pytree._is_leaf is private and will be removed in a future release. "
+    "Please use torch.utils._pytree.tree_is_leaf instead.",
+    category=FutureWarning,
+)
 def _is_leaf(tree: PyTree, is_leaf: Optional[Callable[[PyTree], bool]] = None) -> bool:
-    return (is_leaf is not None and is_leaf(tree)) or _get_node_type(
-        tree
-    ) not in SUPPORTED_NODES
+    return tree_is_leaf(tree, is_leaf=is_leaf)
 
 
 # A TreeSpec represents the structure of a pytree. It holds:
@@ -1020,7 +1041,7 @@ def tree_flatten(
     """
 
     def helper(node: PyTree, leaves: list[Any]) -> TreeSpec:
-        if _is_leaf(node, is_leaf=is_leaf):
+        if tree_is_leaf(node, is_leaf=is_leaf):
             leaves.append(node)
             return _LEAF_SPEC
 
@@ -1054,7 +1075,7 @@ def tree_iter(
     is_leaf: Optional[Callable[[PyTree], bool]] = None,
 ) -> Iterable[Any]:
     """Get an iterator over the leaves of a pytree."""
-    if _is_leaf(tree, is_leaf=is_leaf):
+    if tree_is_leaf(tree, is_leaf=is_leaf):
         yield tree
     else:
         node_type = _get_node_type(tree)
@@ -1500,7 +1521,7 @@ def _broadcast_to_and_flatten(
 ) -> Optional[list[Any]]:
     assert isinstance(treespec, TreeSpec)
 
-    if _is_leaf(tree, is_leaf=is_leaf):
+    if tree_is_leaf(tree, is_leaf=is_leaf):
         return [tree] * treespec.num_leaves
     if treespec.is_leaf():
         return None

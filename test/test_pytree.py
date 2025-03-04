@@ -140,6 +140,44 @@ class TestGenericPytree(TestCase):
                         )
 
     @parametrize(
+        "modulename",
+        [
+            subtest("python", name="py"),
+            *([subtest("cxx", name="cxx")] if not IS_FBCODE else []),
+        ],
+    )
+    def test_public_api_import(self, modulename):
+        for use_cxx_pytree in [None, "", "0", *(["1"] if not IS_FBCODE else [])]:
+            env = os.environ.copy()
+            if use_cxx_pytree is not None:
+                env["PYTORCH_USE_CXX_PYTREE"] = str(use_cxx_pytree)
+            else:
+                env.pop("PYTORCH_USE_CXX_PYTREE", None)
+            for statement in (
+                f"import torch.utils.pytree.{modulename}",
+                f"from torch.utils.pytree import {modulename}",
+                f"from torch.utils.pytree.{modulename} import tree_map",
+                f"import torch.utils.pytree; torch.utils.pytree.{modulename}",
+                f"import torch.utils.pytree; torch.utils.pytree.{modulename}.tree_map",
+            ):
+                try:
+                    subprocess.check_output(
+                        [sys.executable, "-c", statement],
+                        stderr=subprocess.STDOUT,
+                        # On Windows, opening the subprocess with the default CWD makes `import torch`
+                        # fail, so just set CWD to this script's directory
+                        cwd=os.path.dirname(os.path.realpath(__file__)),
+                        env=env,
+                    )
+                except subprocess.CalledProcessError as e:
+                    self.fail(
+                        msg=(
+                            f"Subprocess exception while attempting to run statement `{statement}`: "
+                            + e.output.decode("utf-8")
+                        )
+                    )
+
+    @parametrize(
         "pytree_impl",
         [
             subtest(py_pytree, name="py"),
@@ -187,9 +225,13 @@ class TestGenericPytree(TestCase):
     )
     def test_flatten_unflatten_leaf(self, pytree_impl):
         def run_test_with_leaf(leaf):
+            leafspec = pytree_impl.tree_structure(object())
+            self.assertTrue(leafspec.is_leaf())
+
             values, treespec = pytree_impl.tree_flatten(leaf)
             self.assertEqual(values, [leaf])
-            self.assertEqual(treespec, pytree_impl.LeafSpec())
+            self.assertEqual(treespec, leafspec)
+            self.assertTrue(treespec.is_leaf())
 
             unflattened = pytree_impl.tree_unflatten(values, treespec)
             self.assertEqual(unflattened, leaf)
@@ -1346,9 +1388,6 @@ class TestCxxPytree(TestCase):
     def setUp(self):
         if IS_FBCODE:
             raise unittest.SkipTest("C++ pytree tests are not supported in fbcode")
-
-    def test_treespec_equality(self):
-        self.assertEqual(cxx_pytree.LeafSpec(), cxx_pytree.LeafSpec())
 
     def test_treespec_repr(self):
         # Check that it looks sane
