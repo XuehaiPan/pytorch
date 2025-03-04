@@ -256,7 +256,7 @@ with torch.no_grad():
             str(gm.code).strip(),
             """\
 def forward(self, linear):
-    linear, = fx_pytree.tree_flatten_spec(([linear], {}), self._in_spec)
+    linear, = fx_pytree.tree_flatten_spec(((linear,), {}), self._in_spec)
     relu = torch.ops.aten.relu.default(linear);  linear = None
     return pytree.tree_unflatten((relu,), self._out_spec)""",
         )

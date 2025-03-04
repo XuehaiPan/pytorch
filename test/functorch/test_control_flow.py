@@ -6914,7 +6914,7 @@ class GraphModule(torch.nn.Module):
     def forward(self, x):
         x: "f32[s0, 3]";
 
-        x, = fx_pytree.tree_flatten_spec(([x], {}), self._in_spec)
+        x, = fx_pytree.tree_flatten_spec(((x,), {}), self._in_spec)
         sym_size_int_1: "Sym(s0)" = torch.ops.aten.sym_size.int(x, 0)
 
         while_loop_cond_graph_0 = self.while_loop_cond_graph_0
@@ -7060,7 +7060,7 @@ class GraphModule(torch.nn.Module):
     def forward(self, t):
         t: "f32[2, 3]";
 
-        t, = fx_pytree.tree_flatten_spec(([t], {}), self._in_spec)
+        t, = fx_pytree.tree_flatten_spec(((t,), {}), self._in_spec)
         sum_1: "f32[]" = torch.ops.aten.sum.default(t)
         to: "i64[]" = torch.ops.aten.to.dtype(sum_1, torch.int64);  sum_1 = None
         item: "Sym(u0)" = torch.ops.aten.item.default(to);  to = None
@@ -7209,7 +7209,7 @@ class GraphModule(torch.nn.Module):
     def forward(self, x):
         x: "f32[s0, 3]";
 
-        x, = fx_pytree.tree_flatten_spec(([x], {}), self._in_spec)
+        x, = fx_pytree.tree_flatten_spec(((x,), {}), self._in_spec)
         sym_size_int_1: "Sym(s0)" = torch.ops.aten.sym_size.int(x, 0)
 
         sin: "f32[s0, 3]" = torch.ops.aten.sin.default(x);  x = None
@@ -7440,7 +7440,7 @@ class GraphModule(torch.nn.Module):
     def forward(self, a, b1, b2, c):
         a: "b8[]"; b1: "i64[1]"; b2: "i64[1]"; c: "f32[10]";
 
-        a, b1, b2, c, = fx_pytree.tree_flatten_spec(([a, b1, b2, c], {}), self._in_spec)
+        a, b1, b2, c, = fx_pytree.tree_flatten_spec(((a, b1, b2, c), {}), self._in_spec)
         true_graph_0 = self.true_graph_0
         false_graph_0 = self.false_graph_0
         cond = torch.ops.higher_order.cond(a, true_graph_0, false_graph_0, [c, b1, b2]);  a = true_graph_0 = false_graph_0 = c = b1 = b2 = None
@@ -7497,7 +7497,7 @@ class GraphModule(torch.nn.Module):
     def forward(self, x, y, z):
         x: "f32[s0, 3]"; y: "f32[s1]"; z: "f32[s0, 3]";
 
-        x, y, z, = fx_pytree.tree_flatten_spec(([x, y, z], {}), self._in_spec)
+        x, y, z, = fx_pytree.tree_flatten_spec(((x, y, z), {}), self._in_spec)
         sym_size_int_3: "Sym(s0)" = torch.ops.aten.sym_size.int(x, 0)
         sym_size_int_4: "Sym(s1)" = torch.ops.aten.sym_size.int(y, 0);  y = None
 
