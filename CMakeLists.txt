@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.27 FATAL_ERROR) # please sync with pyproject.toml and requirements.txt
 # cmake_policy(SET CMP0022 NEW) cmake_policy(SET CMP0023 NEW)
 
 # Use compiler ID "AppleClang" instead of "Clang" for XCode. Not setting this
@@ -1257,7 +1257,7 @@ endif()
 add_subdirectory(c10)
 add_subdirectory(caffe2)
 
-# ---[ CMake related files Uninistall option.
+# ---[ CMake related files Uninstall option.
 if(NOT TARGET caffe2_uninstall)
   configure_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/cmake_uninstall.cmake.in
