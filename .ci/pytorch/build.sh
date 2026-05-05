@@ -233,6 +233,10 @@ if [[ "$BUILD_ENVIRONMENT" != *rocm* && "$BUILD_ENVIRONMENT" != *s390x* && "$BUI
   git config --global --add safe.directory /var/lib/jenkins/workspace
 fi
 
+# Install build-system requirements before running setup.py commands
+# We need to manage the build environment manually because we are not using build isolation
+python -m pip install -r requirements-build.txt
+
 # check that setup.py would fail with bad arguments
 echo "The next three invocations are expected to fail with invalid command error messages."
 ( ! get_exit_code python setup.py bad_argument )

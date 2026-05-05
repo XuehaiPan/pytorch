@@ -33,6 +33,9 @@ if which sccache > /dev/null; then
   export PATH="${tmp_dir}:$PATH"
 fi
 
+# Install build-system requirements before running setup.py commands
+# We need to manage the build environment manually because we are not using build isolation
+python -m pip install -r requirements-build.txt
 
 # NS: Ugly hack to be remove by Feb 15 2026
 # Mac runners reuse previous checkouts, and actions/checkout does not clean untracked submodules
