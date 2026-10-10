@@ -3509,6 +3509,11 @@ class DictBuiltinVariable(BaseBuiltinVariable):
         args: list[VariableTracker],
         kwargs: dict[str, VariableTracker],
     ) -> VariableTracker:
+        if len(args) == 1 and isinstance(args[0], variables.FrozenDictVariable):
+            # dict() preserves stored hashes when copying a frozendict.
+            result = ConstDictVariable({}, mutation_type=ValueMutationNew())
+            result.dict_update(tx, args, kwargs)
+            return result
         return DictBuiltinVariable.call_custom_dict(tx, dict, *args, **kwargs)
 
     def fromkeys(
@@ -3592,6 +3597,88 @@ class DictBuiltinVariable(BaseBuiltinVariable):
             [user_cls, *args],
             kwargs,
         )
+
+
+class FrozenDictBuiltinVariable(BaseBuiltinVariable):
+    if torch._has_frozendict:
+        _fn = torch._frozendict
+
+    def __init__(self, value: Any = None, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+
+    def call_function(
+        self,
+        tx: "InstructionTranslatorBase",
+        args: list[VariableTracker],
+        kwargs: dict[str, VariableTracker],
+    ) -> VariableTracker:
+        check_positional(tx, "frozendict", len(args), 0, 1)
+        if (
+            len(args) == 1
+            and isinstance(args[0], variables.FrozenDictVariable)
+            and not kwargs
+        ):
+            return args[0]
+        storage = ConstDictVariable({}, mutation_type=ValueMutationNew())
+        storage.dict_update(tx, args, kwargs)
+        return variables.FrozenDictVariable(storage.items)
+
+    def call_method(
+        self,
+        tx: "InstructionTranslatorBase",
+        name: str,
+        args: list[VariableTracker],
+        kwargs: dict[str, VariableTracker],
+    ) -> VariableTracker:
+        if name == "__class_getitem__":
+            no_keywords(tx, "frozendict.__class_getitem__", kwargs)
+            check_positional(tx, name, len(args), 1, 1)
+            return variables.TypingVariable(self._fn).mp_subscript_impl(tx, args[0])
+        if name == "__new__":
+            if not args:
+                raise_type_error(tx, "frozendict.__new__(): not enough arguments")
+            if not args[0].is_python_constant() or not isinstance(
+                cls := args[0].as_python_constant(), type
+            ):
+                raise_type_error(
+                    tx,
+                    "frozendict.__new__(X): X is not a type object "
+                    f"({args[0].python_type_name()})",
+                )
+            if not issubclass(cls, self._fn):
+                raise_type_error(
+                    tx,
+                    f"frozendict.__new__({cls.__name__}): {cls.__name__} "
+                    "is not a subtype of frozendict",
+                )
+            if cls is not self._fn:
+                unimplemented(
+                    gb_type="frozendict subclass allocation",
+                    context="frozendict.__new__",
+                    explanation="Dynamo does not yet support allocating frozendict subclasses.",
+                    hints=[*graph_break_hints.SUPPORTABLE],
+                )
+            result = self.call_function(tx, args[1:], kwargs)
+            if not isinstance(result, variables.FrozenDictVariable):
+                raise AssertionError(f"Expected FrozenDictVariable, got {type(result)}")
+            return variables.FrozenDictVariable(result.items)
+        if name == "fromkeys":
+            unimplemented(
+                gb_type="frozendict fromkeys",
+                context=name,
+                explanation="Dynamo does not yet support frozendict.fromkeys.",
+                hints=[*graph_break_hints.SUPPORTABLE],
+            )
+        if name in self._fn.__dict__ and callable(self._fn.__dict__[name]):
+            check_positional(tx, name, len(args), 1, sys.maxsize)
+            if not isinstance(args[0], variables.FrozenDictVariable):
+                raise_type_error(
+                    tx,
+                    f"descriptor '{name}' for 'frozendict' objects doesn't apply "
+                    f"to a '{args[0].python_type_name()}' object",
+                )
+            return args[0].call_method(tx, name, args[1:], kwargs)
+        return super().call_method(tx, name, args, kwargs)
 
 
 class IterBuiltinVariable(BaseBuiltinVariable):
@@ -4066,7 +4153,14 @@ class ListBuiltinVariable(BaseBuiltinVariable):
                     install_guard(
                         obj.source.make_guard(GuardBuilder.MAPPING_KEYS_CHECK)
                     )
-                elif not isinstance(obj, variables.UnspecializedNNModuleVariable):
+                # Frozendict keys and length are guarded through its items snapshot.
+                elif not isinstance(
+                    obj,
+                    (
+                        variables.UnspecializedNNModuleVariable,
+                        variables.FrozenDictVariable,
+                    ),
+                ):
                     install_guard(obj.source.make_guard(GuardBuilder.SEQUENCE_LENGTH))
 
         lst = ListVariable([], mutation_type=ValueMutationNew())
