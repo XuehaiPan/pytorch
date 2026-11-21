@@ -3006,7 +3006,12 @@ def object_generic_setattr_str(
                         "reload it from.",
                         hints=[*graph_break_hints.SUPPORTABLE],
                     )
-            if obj.is_tensor() or isinstance(obj, variables.PythonModuleVariable):
+            untracked_ordered_dict = type(obj) is variables.OrderedDictVariable
+            if (
+                untracked_ordered_dict
+                or obj.is_tensor()
+                or isinstance(obj, variables.PythonModuleVariable)
+            ):
                 # handle_traced_output leaves aliased Tensor outputs untracked
                 # (repeated objects, returned inputs): replaying onto them as
                 # new objects would be wrong.
@@ -3015,6 +3020,9 @@ def object_generic_setattr_str(
                     context=f"setattr({obj}, {name}, {value})",
                     explanation=f"setattr() is not supported on type {obj.python_type_name()}",
                     hints=[*graph_break_hints.SUPPORTABLE],
+                    skip_frame=untracked_ordered_dict,
+                    preserve_skip_frame_after_inline=untracked_ordered_dict,
+                    apply_to_code=not untracked_ordered_dict,
                 )
             se.track_attribute_mutation_new(obj)
 

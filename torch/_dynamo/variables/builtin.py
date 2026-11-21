@@ -59,6 +59,7 @@ from ..exc import (
 from ..guards import GuardBuilder, install_guard
 from ..source import (
     AttrSource,
+    DictGetItemSource,
     GetItemSource,
     GlobalSource,
     is_constant_source,
@@ -3511,11 +3512,23 @@ class BuiltinVariable(TypeVariable):
                 guard_type = arg.get_id_guard_type()
                 if guard_type is not None:
                     install_guard(arg.source.make_guard(guard_type))
-            return VariableTracker.build(tx, real_id)
+            result = VariableTracker.build(tx, real_id)
+        else:
+            from .builder import SourcelessBuilder
 
-        from .builder import SourcelessBuilder
-
-        return SourcelessBuilder.create_internal_fake_id(id(arg))
+            result = SourcelessBuilder.create_internal_fake_id(id(arg))
+        if (legacy := variables.functions._legacy_deepcopy) is not None:
+            if tx.f_globals is legacy.__globals__ or isinstance(
+                arg, (ConstDictVariable, ListVariable)
+            ):
+                scope = None
+            elif real_id is not None and isinstance(arg.source, DictGetItemSource):
+                scope = arg.source.base
+            else:
+                return result
+            with contextlib.suppress(NotImplementedError):
+                tx.output.deepcopy_id_types[result] = (arg.python_type(), scope)
+        return result
 
     def call_deepcopy(
         self, tx: "InstructionTranslatorBase", x: VariableTracker
@@ -3880,7 +3893,7 @@ class DictBuiltinVariable(TypeVariable):
             obj = args[0].realize()
             if isinstance(obj, ConstDictVariable):
                 obj.check_base_dict_mutation(tx, name)
-            if name == "__repr__":
+            if name in (*_RICH_CMP_DUNDERS, "__repr__", "__iter__"):
                 if not isinstance(obj, ConstDictVariable):
                     unimplemented(
                         gb_type="Unsupported builtin dictionary storage operation",
