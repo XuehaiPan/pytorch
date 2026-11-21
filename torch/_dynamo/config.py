@@ -453,9 +453,10 @@ use_lamba_guard_for_object_aliasing = False
 # Whether to skip guarding on FSDP-managed modules
 skip_fsdp_guards = True
 
-# Make dynamo skip guarding on hooks on nn modules
-# Note: unsafe: if your model actually has hooks and you remove them, or doesn't and  you add them,
-# dynamo will not notice and will execute whichever version you first compiled.
+# Skip emptiness checks on builtin local hook registries and type checks on
+# builtin global registries and keys used for flag membership during dispatch.
+# Calling forward directly on a module without hooks can miss later global hooks
+# with either setting.
 skip_nnmodule_hook_guards = True
 
 # Make dynamo skip no tensor aliasing guard on parameters
