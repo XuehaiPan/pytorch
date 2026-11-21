@@ -33,6 +33,7 @@ from torch._C._dynamo import (
 )
 
 from .. import config, graph_break_hints, polyfills, variables
+from ..current_scope_id import current_scope_id
 from ..exc import (
     handle_observed_exception,
     ObservedAttributeError,
@@ -93,6 +94,7 @@ def vt_identity_compare(
     Returns ConstantVariable(True/False) if determinable, else None.
     Mirrors the logic in BuiltinVariable's handle_is handler.
     """
+    a, b = left.source, right.source
     # Binding equality permits fresh wrappers; identity observations do not.
     if guard_identity:
         left, right = left.unwrap(), right.unwrap()
@@ -110,6 +112,24 @@ def vt_identity_compare(
                 if arg.source is not None:
                     arg.get_id(tx)
                     install_guard(arg.source.make_guard(GuardBuilder.ID_MATCH))
+    if a is not None and b is not None and a != b and current_scope_id() > 1:
+        from ..symbolic_convert import InstructionTranslator
+        from .lists import RangeVariable, SliceVariable, TupleVariable
+        from .user_defined import UserDefinedVariable
+
+        tracer = InstructionTranslator.current_tx().output.current_tracer
+        if tracer.tracks_lexical_sources and not any(map(is_constant_source, (a, b))):
+            left, right = left.realize(), right.realize()
+            if type(left) is type(right):
+                if type(left) is VariableTracker or isinstance(
+                    left, UserDefinedVariable
+                ):
+                    same = left.value is right.value
+                    check = partial(GuardBuilder.DUPLICATE_INPUT, source_b=b, same=same)
+                    install_guard(a.make_guard(check))
+                    return ConstantVariable.create(same)
+                if type(left) in (TupleVariable, RangeVariable, SliceVariable):
+                    return None
     if left is right:
         return ConstantVariable.create(True)
 

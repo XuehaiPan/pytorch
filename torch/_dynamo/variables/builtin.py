@@ -1681,7 +1681,10 @@ class BuiltinVariable(TypeVariable):
                     args: list[VariableTracker],
                     kwargs: dict[str, VariableTracker],
                 ) -> VariableTracker | None:
-                    # path with a runtime check
+                    # Reconstructed constants cannot establish identity in a reusable region.
+                    if fn in (operator.is_, operator.is_not):
+                        if tx.output.current_tracer.tracks_lexical_sources:
+                            return None
                     if check_unspec_or_constant_args(args, kwargs):
                         try:
                             res = fn(
