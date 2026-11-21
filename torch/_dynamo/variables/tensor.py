@@ -3241,6 +3241,8 @@ class SymNodeVariable(VariableTracker):
     handle logic like float_tensor.item() or unspecialized float inputs.
     """
 
+    _cpython_type = (int, float, bool)
+
     _nonvar_fields = {
         "proxy",
         "sym_num",

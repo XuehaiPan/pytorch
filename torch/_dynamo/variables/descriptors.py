@@ -338,6 +338,8 @@ class MethodWrapperVariable(VariableTracker):  # noqa: RVT001
     https://github.com/python/cpython/blob/3.13/Objects/descrobject.c#L1450
     """
 
+    _cpython_type = types.MethodWrapperType
+
     _nonvar_fields = {
         "descriptor",
         *VariableTracker._nonvar_fields,
@@ -1560,6 +1562,8 @@ class PropertyVariable(VariableTracker):
     https://github.com/python/cpython/blob/3.13/Objects/descrobject.c#L1660-L1693
     """
 
+    _cpython_type = property
+
     _nonvar_fields = {
         "descriptor",
         *VariableTracker._nonvar_fields,
@@ -1715,6 +1719,8 @@ class TupleGetterVariable(VariableTracker):
     https://github.com/python/cpython/blob/3.13/Modules/_collectionsmodule.c#L2735
     https://github.com/python/cpython/blob/3.13/Modules/_collectionsmodule.c#L2636-L2663
     """
+
+    _cpython_type = _collections._tuplegetter
 
     _nonvar_fields = {
         "descriptor",
